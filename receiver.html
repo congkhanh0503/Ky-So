@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giao diện Người Nhận</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        .receiver-bg {
+            @apply bg-gradient-to-br from-green-100 to-green-200;
+        }
+        .receiver-button {
+            @apply bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300;
+        }
+    </style>
+</head>
+<body class="receiver-bg min-h-screen flex items-center justify-center py-6">
+    <div class="max-w-lg w-full">
+        <div class="bg-white p-8 rounded-xl shadow-lg border border-green-300">
+            <h1 class="text-3xl font-bold text-green-800 mb-6 text-center">Người Nhận</h1>
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-green-700 mb-2">Chọn tệp đã nhận:</label>
+                <input type="file" id="fileInput" class="w-full p-3 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-green-700 mb-2">Chữ ký số:</label>
+                <textarea id="signature" class="w-full p-3 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" rows="4" placeholder="Chữ ký sẽ tự động điền" readonly></textarea>
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-green-700 mb-2">Khóa công khai RSA:</label>
+                <textarea id="publicKey" class="w-full p-3 border border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" rows="6" placeholder="Khóa sẽ tự động điền" readonly></textarea>
+            </div>
+            <button onclick="verifySignature()" class="receiver-button w-full">Xác Minh Chữ Ký</button>
+            <div id="connectionStatus" class="mt-4 text-sm text-green-600"></div>
+            <div id="result" class="mt-4 text-green-700"></div>
+        </div>
+    </div>
+    <script>
+        const socket = io();
+        socket.on('connect', () => {
+            socket.emit('set_role', { role: 'receiver' });
+        });
+        socket.on('connection_status', (data) => {
+            document.getElementById('connectionStatus').innerHTML = `<p>${data.message}</p>`;
+        });
+        socket.on('receive_file', (data) => {
+            const { filename, file_content, signature, public_key } = data;
+            document.getElementById('signature').value = signature;
+            document.getElementById('publicKey').value = public_key;
+            document.getElementById('result').innerHTML = `<p class="text-green-600">Đã nhận file: ${filename}</p>`;
+            try {
+                const byteCharacters = atob(file_content);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'application/octet-stream' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (e) {
+                document.getElementById('result').innerHTML += `<p class="text-red-600">Lỗi khi tải file: ${e.message}</p>`;
+            }
+        });
+
+        async function verifySignature() {
+            const fileInput = document.getElementById('fileInput');
+            const signature = document.getElementById('signature').value;
+            const publicKey = document.getElementById('publicKey').value;
+
+            if (!fileInput.files[0]) {
+                document.getElementById('result').innerHTML = '<p class="text-red-600">Vui lòng chọn tệp!</p>';
+                return;
+            }
+            if (!signature || !publicKey) {
+                document.getElementById('result').innerHTML = '<p class="text-red-600">Vui lòng chờ file từ Sender!</p>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('signature', signature);
+            formData.append('public_key', publicKey);
+
+            try {
+                const response = await fetch('/verify_signature', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.valid) {
+                    document.getElementById('result').innerHTML = '<p class="text-green-600">Chữ ký hợp lệ!</p>';
+                } else {
+                    document.getElementById('result').innerHTML = `<p class="text-red-600">Chữ ký không hợp lệ: ${data.error}</p>`;
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = `<p class="text-red-600">Lỗi khi xác minh: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
