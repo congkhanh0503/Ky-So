@@ -80,3 +80,5 @@ Giấy phép
 [Thêm thông tin giấy phép nếu cần, ví dụ: MIT License]
 Liên hệ
 Hỗ trợ: [Thêm email hoặc liên hệ nếu cần].
+![image](https://github.com/user-attachments/assets/6f877485-0b37-4dd0-936c-bebd8ad6ebb1)
+
